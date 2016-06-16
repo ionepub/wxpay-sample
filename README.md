@@ -1,4 +1,4 @@
-# 单一帐号微信扫码支付
+# 微信扫码支付（单商户）
 
 微信支付包括APP支付/js微信应用内支付/扫码支付等方式，官方提供了demo：[https://pay.weixin.qq.com/wiki/doc/api/jsapi.php?chapter=11_1](https://pay.weixin.qq.com/wiki/doc/api/jsapi.php?chapter=11_1)
 
@@ -84,4 +84,39 @@ $url = $result["code_url"];  //这个就是获取到的待生成二维码的url
 
     关于这个接口的调用频率文档里貌似没有提到，不过如果需要的话，也可以在cookie或者session里存放生成的url，一定程度上可以防止用户恶意刷新
 
-//todo  微信支付回调
+### 微信支付回调
+
+由于是扫码支付，支付的回调只能通过异步来完成
+
+微信的回调示例代码在 example/notify.php里
+
+```php
+        //重写回调处理函数
+	public function NotifyProcess($data, &$msg)
+	{
+		Log::DEBUG("call back:" . json_encode($data));
+		$notfiyOutput = array();
+		
+		if(!array_key_exists("transaction_id", $data)){
+			$msg = "输入参数不正确";
+			return false;
+		}
+		//查询订单，判断订单真实性
+		if(!$this->Queryorder($data["transaction_id"])){
+			$msg = "订单查询失败";
+			return false;
+		}
+		//可以在这里写自己的支付完成逻辑
+		return true;
+	}
+```
+
+仅仅是扫码支付，所以相对而已会简单很多，我自己在项目中是这样处理的：
+
+1. 使用curl将订单信息post给native.php，native.php接收到数据之后，向微信发起统一下单，从而获得微信支付链接；
+2. 使用js二维码生成库将链接转换成二维码（微信官方提供的是phpqrcode这个库，对于我这个项目来说，这个库太大了，光文件就几十上百个，而js的话就只是一个文件而已）
+3. 用户支付完成之后回调，在NotifyProcess中同样通过curl将订单支付信息post到项目中，之后对订单进行付款处理
+
+		这样做有一个好处，这样的代码相当于对外有接口，只要用约定的方法调用，可以直接把整个文件夹复制到多个项目重用。
+
+
